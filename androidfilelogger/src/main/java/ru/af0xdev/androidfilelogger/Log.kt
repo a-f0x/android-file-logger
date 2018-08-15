@@ -1,256 +1,102 @@
 package ru.af0xdev.androidfilelogger
 
-
 import android.os.Build
-import java.io.*
-import java.net.UnknownHostException
-import java.util.*
-import java.util.concurrent.locks.ReentrantLock
-import java.util.zip.GZIPOutputStream
-
+import java.io.File
 
 object Log {
-    private const val LOG_FORMAT_D = "%s D/%s: %s"
-    private const val LOG_FORMAT_I = "%s I/%s: %s"
-    private const val LOG_FORMAT_E2 = "%s E/%s: %s \n %s"
-    private const val LOG_FORMAT_W = "%s W/%s: %s"
-    private const val TIME_FORMAT = "%02d.%02d.%04d %02d:%02d:%02d"
+    private var isInitialized = false
+    private lateinit var logger: FileLogger
+    private var uploader: ILogUploader? = null
     private const val DEFAULT_BUFFER_LENGTH = 5000
-    private val TAG = Log::class.java.simpleName
-    private val lock = ReentrantLock()
-    private var buffer = arrayOfNulls<String>(DEFAULT_BUFFER_LENGTH)
-    private var indexer = LongArray(DEFAULT_BUFFER_LENGTH)
-    private var index = 0
-    private var count = DEFAULT_BUFFER_LENGTH
-    private var orderIndex: Long = 0
-    private lateinit var logFile: File
-    private var isDebugMode = true
 
 
-    fun init(bufferSize: Int = DEFAULT_BUFFER_LENGTH,
-             initMessage: String? = null,
-             logFile: File, isDebugMode: Boolean) {
-        Log.logFile = logFile
-        buffer = arrayOfNulls(bufferSize)
-        indexer = LongArray(bufferSize)
-        count = bufferSize
-        Log.isDebugMode = isDebugMode
-        initMessage?.let {
-            android.util.Log.i("Init LOG ", "Start init log. Start getMessage: $it\n")
-        }
-        android.util.Log.i("Init LOG ", "Log dir: ${logFile.absolutePath}\n")
-        android.util.Log.i("System info ", "-----------------------------------------------------")
-        android.util.Log.i("Manufacturer ", Build.MANUFACTURER)
-        android.util.Log.i("Model  ", Build.MODEL)
-        android.util.Log.i("Version SDK ", "" + Build.VERSION.SDK_INT)
-        android.util.Log.i("System info ", "-----------------------------------------------------\n")
+    /**
+     *
+     * @param directoryPath  log file location
+     * @param fileName name of file without extension
+     * @param enableAndroidUtilLogger - enable duplication log messages to [android.util.Log]
+     * @param bufferSize size of in memory storage, default value is 5000
+     * @param logUploader implementation of [ILogUploader] may be null
+     *
+     * */
+
+    fun initialize(directoryPath: String, fileName: String,
+                   enableAndroidUtilLogger: Boolean = true,
+                   bufferSize: Int = DEFAULT_BUFFER_LENGTH,
+                   logUploader: ILogUploader? = null) {
+
+        val fName = "${fileName.substringBefore(".")}.gz"
+        val logFile = File(directoryPath, fName)
+
+        logger = FileLogger(bufferSize, logFile, enableAndroidUtilLogger)
+        logger.i("Init LOG ", "FileLogger dir: ${logFile.absolutePath}\n")
+        logger.i("System info ", "-----------------------------------------------------")
+        logger.i("Manufacturer ", Build.MANUFACTURER ?: "Unknown")
+        logger.i("Model  ", Build.MODEL ?: "Unknown")
+        logger.i("SDK version ", "" + Build.VERSION.SDK_INT)
+        logger.i("System info ", "-----------------------------------------------------\n")
+        uploader = logUploader
+        isInitialized = true
     }
 
-    fun d(tag: String, value: String) {
-        lock.lock()
-        try {
-            val line = String.format(LOG_FORMAT_D, getFormattedTime(), tag, value)
-            buffer[index] = line
-            indexer[index] = orderIndex++
-            incIndex()
-            if (isDebugMode)
-                android.util.Log.d(tag, value)
-        } finally {
-            lock.unlock()
-        }
+    /**
+     * Send a {@link #DEBUG} log message and log the exception.
+     * @param tag Used to identify the source of a log message.  It usually identifies
+     *        the class or activity where the log call occurs.
+     * @param message The message you would like logged.
+     * @param throwable An exception to log
+     */
+    fun d(tag: String, message: String, throwable: Throwable? = null) {
+        check(isInitialized, { "Log is not initialized! Call Log.fun initialize(...)" })
+        logger.d(tag, message, throwable)
     }
 
-    fun i(tag: String, value: String) {
-        lock.lock()
-        try {
-            val line = String.format(LOG_FORMAT_I, getFormattedTime(), tag, value)
-            buffer[index] = line
-            indexer[index] = orderIndex++
-            incIndex()
-            if (isDebugMode)
-                android.util.Log.i(tag, value)
-        } finally {
-            lock.unlock()
-        }
+    /**
+     * Log a info message
+     * @param tag Used to identify the source of a log message.  It usually identifies
+     *        the class or activity where the log call occurs.
+     * @param message The message you would like logged.
+     * */
+    fun i(tag: String, message: String) {
+        check(isInitialized, { "Log is not initialized! Call Log.fun initialize(...)" })
+        logger.i(tag, message)
     }
 
-    fun e(tag: String, value: String, e: Throwable? = null) {
-        lock.lock()
-        try {
-            val line = String.format(LOG_FORMAT_E2, getFormattedTime(), tag, value, getStackTraceString(e))
-            buffer[index] = line
-            indexer[index] = orderIndex++
-            incIndex()
-            if (isDebugMode)
-                android.util.Log.e(tag, value, e)
-        } finally {
-            lock.unlock()
-        }
+    /**
+     * Log a error message
+     * @param tag Used to identify the source of a log message.  It usually identifies
+     *        the class or activity where the log call occurs.
+     * @param message The message you would like logged.
+     * @param throwable An exception to log
+     * */
+    fun e(tag: String, message: String, throwable: Throwable? = null) {
+        check(isInitialized, { "Log is not initialized! Call Log.fun initialize(...)" })
+        logger.e(tag, message, throwable)
     }
 
-    fun w(tag: String, value: String) {
-        lock.lock()
-        try {
-            val line = String.format(LOG_FORMAT_W, getFormattedTime(), tag, value) ?: return
-            buffer[index] = line
-            indexer[index] = orderIndex++
-            incIndex()
-            if (isDebugMode)
-                android.util.Log.w(tag, value)
-        } finally {
-            lock.unlock()
-        }
+    /**
+     * Log a warning message
+     * @param tag Used to identify the source of a log message.  It usually identifies
+     *        the class or activity where the log call occurs.
+     * @param message The message you would like logged.
+     * */
+    fun w(tag: String, message: String) {
+        check(isInitialized, { "Log is not initialized! Call Log.fun initialize(...)" })
+        logger.w(tag, message)
     }
 
+    /**
+     * Flush all logged info into file, and return file compressed in gzip
+     * @return [File]
+     *
+     * */
+    fun flushLog(): File = logger.writeLog()
 
-    private fun writeLog(): File? {
-        val fileName = "log.gz"
-
-        val logFile = File(logFile, fileName)
-        var fos: FileOutputStream? = null
-        try {
-            android.util.Log.i("WRITE_LOG", "show")
-            if (!logFile.exists()) {
-                if (logFile.createNewFile())
-                    android.util.Log.i("WRITE_LOG", "create log file " + logFile.absolutePath)
-                else
-                    android.util.Log.i("WRITE_LOG", "error create log file")
-            } else {
-                if (logFile.length() > 1024 * 1024 * 3) {
-                    android.util.Log.i("WRITE_LOG", "recreate file. old file size > 3mb.")
-                    logFile.delete()
-                    logFile.createNewFile()
-                }
-            }
-            val array = getCompressedLog()
-            if (array.isEmpty()) {
-                android.util.Log.i("WRITE_LOG", "buffer 0")
-                return null
-            }
-            fos = FileOutputStream(logFile, true)
-            fos.write(array)
-            fos.flush()
-            fos.close()
-            android.util.Log.i("WRITE_LOG", "write successful!")
-
-        } catch (e: IOException) {
-            android.util.Log.i("WRITE_LOG", "write ERROR!!!")
-            e.printStackTrace()
-        } finally {
-            if (fos != null) {
-                try {
-                    fos.flush()
-                    fos.close()
-                } catch (e: IOException) {
-                    e.printStackTrace()
-                }
-            }
-        }
-        init(buffer.size, "Log file write successful. " + logFile.absolutePath, this.logFile, isDebugMode)
-        return logFile
-    }
-
-    private fun getCompressedLog(): ByteArray {
-        var os: ByteArrayOutputStream? = null
-        var gos: GZIPOutputStream? = null
-        try {
-            val log = getLog()
-            os = ByteArrayOutputStream(log.length)
-            gos = GZIPOutputStream(os)
-            gos.write(log.toByteArray())
-            gos.flush()
-            gos.close()
-            val compressed = os.toByteArray()
-            os.close()
-            return compressed
-        } catch (e: IOException) {
-            android.util.Log.e(TAG, "error", e)
-        } finally {
-            if (gos != null) {
-                try {
-                    gos.close()
-                } catch (e: IOException) {
-                    Log.e(TAG, "error close GZIP output stream", e)
-                }
-            }
-            if (os != null) {
-                try {
-                    os.close()
-                } catch (e: IOException) {
-                    Log.e(TAG, "error close output stream", e)
-                }
-            }
-        }
-        return ByteArray(0)
-    }
-
-    private fun getLog(): String {
-        val sb = StringBuilder()
-        lock.lock()
-        try {
-            if (indexer[index] > count) {
-                // was cycle
-                for (i in index + 1 until count) {
-                    if (buffer[i] == null)
-                        continue
-                    sb.append(buffer[i])
-                    sb.append("\n")
-                }
-                for (i in 0..index) {
-                    if (buffer[i] == null)
-                        continue
-                    sb.append(buffer[i])
-                    sb.append("\n")
-                }
-            } else {
-                for (i in 0..index) {
-                    if (buffer[i] == null)
-                        continue
-                    sb.append(buffer[i])
-                    sb.append("\n")
-                }
-            }
-        } finally {
-            lock.unlock()
-        }
-
-        return sb.toString()
-    }
-
-    private fun incIndex() {
-        index++
-        if (index == count) {
-            index = 0
-            writeLog()
-        }
-    }
-
-    private fun getFormattedTime(): String {
-        val cal = Calendar.getInstance()
-
-        return String.format(TIME_FORMAT,
-                cal.get(Calendar.DATE), cal.get(Calendar.MONTH) + 1, cal.get(Calendar.YEAR), cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), cal.get(Calendar.SECOND)
-        )
-    }
-
-    private fun getStackTraceString(tr: Throwable?): String {
-        if (tr == null) {
-            return ""
-        }
-        var t = tr
-        while (t != null) {
-            if (t is UnknownHostException) {
-                return ""
-            }
-            t = t.cause
-        }
-        val sw = StringWriter()
-        val pw = PrintWriter(sw)
-        tr.printStackTrace(pw)
-        pw.flush()
-        return sw.toString()
+    /**
+     * Upload log in another thread
+     * @param
+     * */
+    fun uploadLog(callBack: IUploaderCallBack?) {
+        uploader?.uploadLog(logger.writeLog(), callBack)
     }
 }
-
-
-
