@@ -73,7 +73,7 @@ internal class FileLogger constructor(bufferSize: Int,
     internal fun w(tag: String, value: String) {
         lock.lock()
         try {
-            val line = String.format(LOG_FORMAT_W, getFormattedTime(), tag, value) ?: return
+            val line = String.format(LOG_FORMAT_W, getFormattedTime(), tag, value)
             buffer[index] = line
             indexer[index] = orderIndex++
             incIndex()
@@ -88,22 +88,15 @@ internal class FileLogger constructor(bufferSize: Int,
     internal fun writeLog(): File {
         var fos: FileOutputStream? = null
         try {
-            android.util.Log.i("WRITE_LOG", "show")
             if (!logFile.exists()) {
                 if (logFile.createNewFile())
-                    android.util.Log.i("WRITE_LOG", "create log file " + logFile.absolutePath)
+                    android.util.Log.i(javaClass.simpleName, "create log file " + logFile.absolutePath)
                 else
-                    android.util.Log.i("WRITE_LOG", "error create log file")
-            } else {
-                if (logFile.length() > 1024 * 1024 * 3) {
-                    android.util.Log.i("WRITE_LOG", "recreate file. old file size > 3mb.")
-                    logFile.delete()
-                    logFile.createNewFile()
-                }
+                    android.util.Log.i(javaClass.simpleName, "error create log file")
             }
             val array = getCompressedLog()
             if (array.isEmpty()) {
-                android.util.Log.i("WRITE_LOG", "buffer 0")
+                android.util.Log.i(javaClass.simpleName, "buffer 0")
                 return logFile
             }
             fos = FileOutputStream(logFile, true)

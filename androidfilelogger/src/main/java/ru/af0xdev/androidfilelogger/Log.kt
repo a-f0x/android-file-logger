@@ -93,7 +93,7 @@ object Log {
     fun flushLog(): File = logger.writeLog()
 
     /**
-     * Upload log in another thread
+     * Upload log to server
      * @param
      * */
     fun uploadLog(callBack: IUploaderCallBack?) {
