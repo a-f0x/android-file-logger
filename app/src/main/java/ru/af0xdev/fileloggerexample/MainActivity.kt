@@ -76,7 +76,6 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
 
     private fun upload() {
-        Log.d(javaClass.simpleName, "Test button pressed")
         Log.uploadLog(object : IUploaderCallBack {
             override fun onUploadStart() {
                 runOnUiThread {
@@ -87,6 +86,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             }
 
             override fun onUploadFinish() {
+                Log.flushLog().delete()
                 runOnUiThread {
                     progress.visibility = GONE
                     tvProgress.text = "upload finished!"

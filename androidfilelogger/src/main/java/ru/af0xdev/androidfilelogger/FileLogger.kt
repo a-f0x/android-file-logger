@@ -86,27 +86,27 @@ internal class FileLogger constructor(bufferSize: Int,
 
 
     internal fun writeLog(): File {
+        i(javaClass.simpleName, "start write log file")
         var fos: FileOutputStream? = null
         try {
             if (!logFile.exists()) {
                 if (logFile.createNewFile())
-                    android.util.Log.i(javaClass.simpleName, "create log file " + logFile.absolutePath)
+                    i(javaClass.simpleName, "create log file " + logFile.absolutePath)
                 else
-                    android.util.Log.i(javaClass.simpleName, "error create log file")
+                    i(javaClass.simpleName, "error create log file")
             }
             val array = getCompressedLog()
             if (array.isEmpty()) {
-                android.util.Log.i(javaClass.simpleName, "buffer 0")
-                return logFile
+                i(javaClass.simpleName, "No data in buffer")
             }
             fos = FileOutputStream(logFile, true)
             fos.write(array)
             fos.flush()
             fos.close()
-            android.util.Log.i("WRITE_LOG", "write successful!")
+            i("WRITE_LOG", "write successful!")
 
         } catch (e: IOException) {
-            android.util.Log.i("WRITE_LOG", "write ERROR!!!")
+            e("WRITE_LOG", "write ERROR!!!", e)
             e.printStackTrace()
         } finally {
             if (fos != null) {
@@ -114,7 +114,7 @@ internal class FileLogger constructor(bufferSize: Int,
                     fos.flush()
                     fos.close()
                 } catch (e: IOException) {
-                    e.printStackTrace()
+                    e("WRITE_LOG", "write ERROR!!!", e)
                 }
             }
         }
@@ -159,6 +159,7 @@ internal class FileLogger constructor(bufferSize: Int,
     }
 
     private fun getLog(): String {
+        i(javaClass.simpleName, "Build log string")
         val sb = StringBuilder()
         lock.lock()
         try {
