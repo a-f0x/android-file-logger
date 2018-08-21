@@ -6,6 +6,4 @@ interface IUploaderCallBack {
     fun onUploadFinish()
 
     fun onUploadError(throwable: Throwable)
-
-    fun onUploadProgress(percent: Int)
 }

@@ -49,7 +49,6 @@ class LogUploaderOverHTTPURLConnection(private val serverUrl: String) : ILogUplo
                 var bytesRead: Int
                 val buf = ByteArray(1024)
                 val bufInput = BufferedInputStream(FileInputStream(logFile))
-                var lastPercent = 0
                 while (true) {
                     bytesRead = bufInput.read(buf)
                     if (bytesRead == -1)
@@ -57,10 +56,6 @@ class LogUploaderOverHTTPURLConnection(private val serverUrl: String) : ILogUplo
                     out.write(buf, 0, bytesRead)
                     out.flush()
                     progress += bytesRead
-                    val percent = ((fileLength / progress) * 100).toInt()
-                    if (lastPercent != percent)
-                        callBack?.onUploadProgress(percent)
-                    lastPercent = percent
                 }
                 out.writeBytes(tail)
                 out.flush()

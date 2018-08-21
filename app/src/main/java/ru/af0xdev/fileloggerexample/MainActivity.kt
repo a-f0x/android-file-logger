@@ -101,12 +101,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 }
             }
 
-            override fun onUploadProgress(percent: Int) {
-                runOnUiThread {
-                    tvProgress.text = "$percent %"
 
-                }
-            }
         })
     }
 }
